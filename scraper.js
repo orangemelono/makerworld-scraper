@@ -67,25 +67,13 @@ async function scrapeData() {
         }));
     });
 
-    console.log('Extracting gif images...');
-    const gifImages = await page.evaluate(() => {
-      const images = Array.from(document.querySelectorAll('img.gif-image'));
-      
-      return images
-        .slice(0, 5)
-        .map(img => ({
-          src: img.getAttribute('src')
-        }));
-    });
-
     await browser.close();
     browser = null;
 
-    console.log(`Found ${modelLinks.length} model links and ${gifImages.length} gif images`);
+    console.log(`Found ${modelLinks.length} model links`);
 
     return {
       modelLinks,
-      gifImages,
       timestamp: new Date().toISOString()
     };
 
@@ -99,31 +87,22 @@ async function scrapeData() {
 }
 
 async function sendToTelegram(data) {
-  console.log('Formatting message for Telegram...');
-  
-  let message = `🔍 *MakerWorld Scrape Results*\n`;
-  message += `📅 Time: ${data.timestamp}\n\n`;
-  
-  message += `📦 *Top 5 Models:*\n\n`;
-  data.modelLinks.forEach((link, index) => {
-    message += `${index + 1}. *${link.title}*\n`;
-    message += `   🔗 https://makerworld.com${link.href}\n\n`;
-  });
-  
-  if (data.gifImages.length > 0) {
-    message += `\n🖼 *Top 5 GIF Images:*\n\n`;
-    data.gifImages.forEach((img, index) => {
-      message += `${index + 1}. ${img.src}\n`;
-    });
-  }
+  console.log('Sending individual messages for each model to Telegram...');
 
-  try {
-    console.log('Sending to Telegram...');
-    await bot.sendMessage(TG_CHAT_ID, message, { parse_mode: 'Markdown' });
-    console.log('Message sent successfully!');
-  } catch (error) {
-    console.error('Telegram error:', error);
-    throw error;
+  for (const [index, link] of data.modelLinks.entries()) {
+    const message = `🔍 *New 3D Model Found!*\n\n*${link.title}*\n🔗 https://makerworld.com${link.href}\n\n📅 Time: ${data.timestamp}`;
+
+    try {
+      console.log(`Sending message ${index + 1} to Telegram...`);
+      await bot.sendMessage(TG_CHAT_ID, message, { parse_mode: 'Markdown' });
+      console.log(`Message ${index + 1} sent successfully!`);
+
+      // Add a small delay between messages to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error(`Telegram error for message ${index + 1}:`, error);
+      // Continue with the next message even if one fails
+    }
   }
 }
 
