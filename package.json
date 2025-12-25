@@ -1,0 +1,17 @@
+{
+  "name": "makerworld-scraper",
+  "version": "1.0.0",
+  "description": "Automated MakerWorld scraper with Telegram notifications",
+  "main": "scraper.js",
+  "scripts": {
+    "start": "node scraper.js"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "node-cron": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
