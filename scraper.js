@@ -123,17 +123,83 @@ async function main() {
   console.log('MakerWorld Scraper starting...');
   console.log(`Bot Token: ${TG_BOT_TOKEN.substring(0, 10)}...`);
   console.log(`Chat ID: ${TG_CHAT_ID}`);
-  
+
   console.log('\n🚀 Running initial scrape...');
   await runScraper();
-  
+
+  // Set up hourly schedule
   console.log('⏰ Setting up hourly schedule...');
   cron.schedule('0 * * * *', async () => {
     console.log('📅 Hourly scrape triggered');
     await runScraper();
   });
-  
-  console.log('✅ Scheduler active. Scraper will run every hour.');
+
+  // Set up Telegram bot commands
+  bot.onText(/\/repeat/, async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    // Only allow the configured chat ID to use the command
+    if (chatId.toString() === TG_CHAT_ID) {
+      console.log(`🔄 /repeat command received from user ${userId} in chat ${chatId}`);
+
+      try {
+        // Send a temporary message to acknowledge the command
+        const ackMsg = await bot.sendMessage(chatId, '🔄 Fetching latest models...', {
+          reply_to_message: msg.message_id
+        });
+
+        // Get fresh data
+        const data = await scrapeData();
+
+        // Send individual messages for each model to the requesting user only
+        for (const [index, link] of data.modelLinks.entries()) {
+          const message = `🔍 *New 3D Model Found!*\n\n*${link.title}*\n🔗 https://makerworld.com${link.href}\n\n📅 Time: ${data.timestamp}`;
+
+          try {
+            console.log(`Sending model ${index + 1} to user ${userId}...`);
+            await bot.sendMessage(chatId, message, {
+              parse_mode: 'Markdown',
+              reply_to_message: msg.message_id
+            });
+            console.log(`Model ${index + 1} sent successfully!`);
+
+            // Add a small delay between messages to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            console.error(`Telegram error for model ${index + 1}:`, error);
+          }
+        }
+
+        // Delete the temporary message
+        await bot.deleteMessage(chatId, ackMsg.message_id);
+
+        console.log(`✅ Sent ${data.modelLinks.length} models to user ${userId}`);
+      } catch (error) {
+        console.error('Error processing /repeat command:', error);
+        await bot.sendMessage(chatId, '❌ Error fetching models. Please try again later.', {
+          reply_to_message: msg.message_id
+        });
+      }
+    } else {
+      // If the command comes from a different chat, inform the user
+      await bot.sendMessage(chatId, '❌ Unauthorized. This command can only be used in the configured chat.', {
+        reply_to_message: msg.message_id
+      });
+    }
+  });
+
+  // Set up help command
+  bot.onText(/\/help/, (msg) => {
+    const chatId = msg.chat.id;
+    if (chatId.toString() === TG_CHAT_ID) {
+      const helpMessage = `🤖 *MakerWorld Scraper Bot*\n\nCommands:\n• \`/repeat\` - Fetch latest models immediately\n• \`/help\` - Show this help message\n\nThe bot checks for new models hourly and sends updates automatically.`;
+      bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+    }
+  });
+
+  console.log('✅ Scheduler and bot commands active.');
+  console.log('✅ Bot is listening for commands (/repeat, /help)');
   console.log('Press Ctrl+C to stop.\n');
 }
 
